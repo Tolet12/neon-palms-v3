@@ -1,53 +1,51 @@
-// Keyboard and pointer input. Held keys give a steering direction; one-shot presses (start or
-// restart, pause) are queued as bit flags and taken once by the loop, so a press between two
-// frames is never lost and never counted twice.
+// Keyboard and mouse state for the game. Held keys are exposed as a live
+// set-like object; one-shot presses (E, F, R, Enter, pause) are queued as
+// edge events so a tap between frames is never lost or counted twice.
 
-export const ACTION_CONFIRM = 1;
-export const ACTION_PAUSE = 2;
+const EDGE_CODES = {
+  KeyE: 'interact', KeyF: 'punch', KeyR: 'retry', Enter: 'confirm',
+  KeyP: 'pause', Escape: 'pause',
+};
 
-const LEFT = new Set(['ArrowLeft', 'KeyA']);
-const RIGHT = new Set(['ArrowRight', 'KeyD']);
-const CONFIRM = new Set(['Space', 'Enter']);
-const PAUSE = new Set(['KeyP', 'Escape']);
+export function createInput(canvas) {
+  const held = Object.create(null);
+  const edges = [];
+  let dragX = 0;        // accumulated mouse-drag orbit, consumed by the camera
+  let dragging = false;
+  let lastX = 0;
 
-export function createInput(target) {
-  let left = false;
-  let right = false;
-  let actions = 0;
-
-  window.addEventListener('keydown', (event) => {
-    if (LEFT.has(event.code)) left = true;
-    else if (RIGHT.has(event.code)) right = true;
-    else if (CONFIRM.has(event.code)) {
-      if (!event.repeat) actions |= ACTION_CONFIRM;
-    } else if (PAUSE.has(event.code)) {
-      if (!event.repeat) actions |= ACTION_PAUSE;
-    } else return;
-    event.preventDefault();
+  window.addEventListener('keydown', (ev) => {
+    if (ev.code === 'Space' || ev.code.startsWith('Arrow')) ev.preventDefault();
+    if (!ev.repeat) {
+      held[ev.code] = true;
+      const action = EDGE_CODES[ev.code];
+      if (action) edges.push(action);
+    }
   });
-  window.addEventListener('keyup', (event) => {
-    if (LEFT.has(event.code)) left = false;
-    else if (RIGHT.has(event.code)) right = false;
-  });
-  // A key released while the tab is hidden never sends keyup: let go of everything on blur.
+  window.addEventListener('keyup', (ev) => { held[ev.code] = false; });
   window.addEventListener('blur', () => {
-    left = false;
-    right = false;
+    for (const k of Object.keys(held)) held[k] = false;
+    dragging = false;
   });
-  target.addEventListener('pointerdown', () => {
-    actions |= ACTION_CONFIRM;
+
+  canvas.addEventListener('pointerdown', (ev) => { dragging = true; lastX = ev.clientX; });
+  window.addEventListener('pointermove', (ev) => {
+    if (!dragging) return;
+    dragX += (ev.clientX - lastX) * 0.005;
+    lastX = ev.clientX;
   });
+  window.addEventListener('pointerup', () => { dragging = false; });
 
   return {
-    /** -1 for left, 1 for right, 0 for neither or both. */
-    direction() {
-      return (right ? 1 : 0) - (left ? 1 : 0);
+    down(...codes) { return codes.some((c) => !!held[c]); },
+    // Movement axes in -1..1 (x = strafe right, z = forward).
+    moveAxis() {
+      const x = (this.down('KeyD', 'ArrowRight') ? 1 : 0) - (this.down('KeyA', 'ArrowLeft') ? 1 : 0);
+      const z = (this.down('KeyW', 'ArrowUp') ? 1 : 0) - (this.down('KeyS', 'ArrowDown') ? 1 : 0);
+      return { x, z };
     },
-    /** The one-shot presses since the last call, as ACTION_* flags. */
-    takeActions() {
-      const taken = actions;
-      actions = 0;
-      return taken;
-    },
+    takeEdges() { const out = edges.slice(); edges.length = 0; return out; },
+    takeDrag() { const d = dragX; dragX = 0; return d; },
+    clear() { edges.length = 0; },
   };
 }

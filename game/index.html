@@ -3,17 +3,120 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Block Dodger</title>
+<title>NEON PALMS — Palmera Bay</title>
 <style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #11141b; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #1a1030; font-family: "Segoe UI", system-ui, sans-serif; color: #fff; }
   #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
-  /* Read aloud, never shown: the status line screen readers announce. */
-  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .panel { background: rgba(16,14,34,.72); border: 1px solid rgba(255,255,255,.18); border-radius: 12px; backdrop-filter: blur(3px); box-shadow: 0 4px 18px rgba(0,0,0,.35); }
+  /* ---------- HUD ---------- */
+  #hud { position: fixed; inset: 0; pointer-events: none; display: none; }
+  #hud.on { display: block; }
+  #stats { position: absolute; top: 14px; left: 14px; padding: 10px 14px; min-width: 190px; }
+  #healthWrap { height: 12px; background: rgba(255,255,255,.15); border-radius: 6px; overflow: hidden; margin-bottom: 7px; }
+  #healthBar { height: 100%; width: 100%; background: linear-gradient(90deg,#ff5d7a,#ffb347); border-radius: 6px; transition: width .18s; }
+  #money { font-size: 22px; font-weight: 800; color: #7dff9a; letter-spacing: .5px; text-shadow: 0 2px 6px rgba(0,0,0,.5); }
+  #repLine { font-size: 12px; color: #ffd76a; font-weight: 700; margin-top: 2px; }
+  #wantedBox { position: absolute; top: 14px; right: 14px; padding: 8px 14px; font-size: 24px; letter-spacing: 3px; }
+  #stars { color: #ffd21f; text-shadow: 0 0 8px rgba(255,210,31,.8); }
+  #stars .off { color: rgba(255,255,255,.22); text-shadow: none; }
+  #missionBox { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); padding: 9px 18px; text-align: center; max-width: 46vw; }
+  #missionTitle { font-size: 13px; font-weight: 800; color: #6ee7ff; letter-spacing: 1.5px; text-transform: uppercase; }
+  #missionObj { font-size: 15px; font-weight: 600; margin-top: 2px; }
+  #missionDist { font-size: 12px; color: #ffd76a; font-weight: 700; }
+  #banner { position: absolute; top: 24%; left: 50%; transform: translate(-50%,-50%) scale(.95); text-align: center; font-size: 40px; font-weight: 900; letter-spacing: 2px; color: #fff; text-shadow: 0 0 22px rgba(255,90,180,.9), 0 4px 10px rgba(0,0,0,.7); opacity: 0; transition: opacity .25s, transform .25s; white-space: nowrap; }
+  #banner.show { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+  #bannerSub { font-size: 17px; font-weight: 700; color: #ffd76a; letter-spacing: 1px; margin-top: 4px; text-shadow: 0 2px 8px rgba(0,0,0,.8); }
+  #minimap { position: absolute; left: 14px; bottom: 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,.25); box-shadow: 0 4px 18px rgba(0,0,0,.4); background: rgba(10,12,28,.85); }
+  #speedBox { position: absolute; right: 14px; bottom: 14px; padding: 8px 16px; text-align: center; display: none; }
+  #speedBox.on { display: block; }
+  #speedVal { font-size: 30px; font-weight: 900; color: #6ee7ff; }
+  #speedBox small { display: block; font-size: 10px; letter-spacing: 2px; color: #bbb; }
+  #bustedWrap { position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%); width: 260px; padding: 8px 12px; display: none; text-align: center; }
+  #bustedWrap.on { display: block; }
+  #bustedWrap .lbl { font-size: 12px; font-weight: 800; letter-spacing: 2px; color: #ff7d7d; }
+  #bustedOuter { height: 10px; background: rgba(255,255,255,.15); border-radius: 5px; overflow: hidden; margin-top: 5px; }
+  #bustedBar { height: 100%; width: 0%; background: #ff4747; }
+  #hint { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); padding: 7px 16px; font-size: 13px; font-weight: 600; color: #ffe9b0; display: none; }
+  #hint.on { display: block; }
+  #vignette { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 55%, rgba(255,0,40,.55) 100%); opacity: 0; transition: opacity .12s; }
+  /* ---------- Screens ---------- */
+  .screen { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; flex-direction: column; text-align: center; z-index: 5; }
+  .screen.on { display: flex; }
+  #titleScreen { background: linear-gradient(180deg, rgba(38,16,74,.88) 0%, rgba(214,80,118,.55) 46%, rgba(255,150,80,.45) 78%, rgba(20,10,40,.9) 100%); }
+  #titleScreen .sun { width: 190px; height: 190px; border-radius: 50%; background: radial-gradient(circle, #fff3b0 0%, #ffd76a 45%, #ff8c5a 75%, rgba(255,120,90,0) 100%); position: absolute; top: 12%; left: 50%; transform: translateX(-50%); filter: blur(1px); opacity: .9; }
+  #titleScreen h1 { position: relative; font-size: 84px; margin: 120px 0 0; font-weight: 900; letter-spacing: 4px; background: linear-gradient(180deg,#8ff7ff 15%,#ff6ec7 60%,#ffd76a 100%); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 4px 0 rgba(60,0,80,.55)) drop-shadow(0 0 26px rgba(255,110,199,.45)); }
+  #titleScreen h2 { position: relative; margin: 2px 0 10px; font-size: 19px; letter-spacing: 6px; color: #ffe9b0; font-weight: 700; }
+  #titleScreen .tag { position: relative; max-width: 560px; font-size: 15px; line-height: 1.5; color: #f4efff; text-shadow: 0 2px 6px rgba(0,0,0,.6); padding: 0 20px; }
+  #controlsBox { position: relative; margin-top: 16px; padding: 12px 22px; font-size: 13.5px; line-height: 1.85; color: #e8e4ff; text-align: left; }
+  #controlsBox b { color: #6ee7ff; display: inline-block; min-width: 118px; }
+  .bigBtn { position: relative; pointer-events: auto; margin-top: 18px; background: linear-gradient(90deg,#ff6ec7,#ff9a5a); border: none; color: #fff; font-size: 19px; font-weight: 900; letter-spacing: 2px; padding: 13px 44px; border-radius: 999px; cursor: pointer; box-shadow: 0 6px 24px rgba(255,110,150,.55); }
+  .bigBtn:hover { filter: brightness(1.12); }
+  #continueBtn { display: none; background: linear-gradient(90deg,#37c8e8,#5a7bff); }
+  #endScreen { background: rgba(10,6,24,.78); }
+  #endScreen h1 { font-size: 64px; margin: 0; letter-spacing: 5px; }
+  #endScreen.busted h1 { color: #6ee7ff; text-shadow: 0 0 24px rgba(110,231,255,.7); }
+  #endScreen.wasted h1 { color: #ff5d5d; text-shadow: 0 0 24px rgba(255,60,60,.7); }
+  #endStats { font-size: 17px; line-height: 1.7; color: #ffe9b0; }
+  #pauseScreen { background: rgba(10,6,24,.6); }
+  #pauseScreen h1 { font-size: 44px; letter-spacing: 6px; margin: 0 0 6px; }
 </style>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.min.js" } }
+</script>
 </head>
 <body>
-<canvas id="game" aria-label="Block Dodger: move the paddle left and right to dodge falling blocks and catch coins"></canvas>
-<p id="status" role="status" aria-live="polite"></p>
+<canvas id="game"></canvas>
+<div id="vignette"></div>
+
+<div id="hud">
+  <div id="stats" class="panel">
+    <div id="healthWrap"><div id="healthBar"></div></div>
+    <div id="money">$0</div>
+    <div id="repLine">REP ★ Level 1 — Rookie Courier</div>
+  </div>
+  <div id="wantedBox" class="panel"><span id="stars"></span></div>
+  <div id="missionBox" class="panel">
+    <div id="missionTitle">Free Roam</div>
+    <div id="missionObj">Explore Palmera Bay</div>
+    <div id="missionDist"></div>
+  </div>
+  <div id="banner"><div id="bannerMain"></div><div id="bannerSub"></div></div>
+  <canvas id="minimap" width="184" height="184"></canvas>
+  <div id="speedBox" class="panel"><span id="speedVal">0</span><small>KM/H</small></div>
+  <div id="bustedWrap" class="panel"><div class="lbl">BUSTED</div><div id="bustedOuter"><div id="bustedBar"></div></div></div>
+  <div id="hint" class="panel"></div>
+</div>
+
+<div id="titleScreen" class="screen on">
+  <div class="sun"></div>
+  <h1>NEON PALMS</h1>
+  <h2>P A L M E R A &nbsp; B A Y</h2>
+  <p class="tag">You are a courier in a sun-soaked coastal city. Take hotter and hotter jobs,
+  outrun the heat, and become the King of Palmera Bay. Five story jobs, one open city,
+  zero permission slips.</p>
+  <div id="controlsBox" class="panel">
+    <div><b>WASD / Arrows</b> Move &amp; drive</div>
+    <div><b>Shift</b> Sprint on foot &nbsp;·&nbsp; <b>Space</b> Handbrake in car</div>
+    <div><b>E</b> Enter / exit car · start a job</div>
+    <div><b>F</b> Punch &nbsp;·&nbsp; <b>P / Esc</b> Pause &nbsp;·&nbsp; <b>R</b> Retry job</div>
+    <div><b>Mouse drag</b> Orbit camera &nbsp;·&nbsp; <b>Enter</b> Start</div>
+  </div>
+  <button id="startBtn" class="bigBtn">START ENGINE</button>
+  <button id="continueBtn" class="bigBtn">CONTINUE</button>
+</div>
+
+<div id="pauseScreen" class="screen">
+  <h1>PAUSED</h1>
+  <p>Press P or Esc to keep rolling.</p>
+</div>
+
+<div id="endScreen" class="screen">
+  <h1 id="endTitle">BUSTED</h1>
+  <div id="endStats"></div>
+  <button id="restartBtn" class="bigBtn">ROLL AGAIN (R)</button>
+</div>
+
 <script type="module" src="./src/main.js"></script>
 </body>
 </html>
